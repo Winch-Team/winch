@@ -1,0 +1,16 @@
+{
+  "appId": "net.strct.kalker",
+  "appName": "Kalker",
+  "bundledWebRuntime": true,
+  "npmClient": "npm",
+  "webDir": "www",
+  "linuxAndroidStudioPath": "/opt/android-studio/bin/studio.sh",
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 0
+    }
+  },
+  "includePlugins": [
+      "SplashScreen"
+  ]
+}

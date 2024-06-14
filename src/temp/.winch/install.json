@@ -1,0 +1,6 @@
+{
+  "build_steps": [
+    "cargo build --manifest-path=cli/Cargo.toml --release"
+  ],
+  "executable_dir": "."
+}

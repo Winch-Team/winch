@@ -8,6 +8,8 @@ use std::path::Path;
 use std::io;
 use std::process::Command;
 
+#[allow(unused_variables)]
+
 pub(crate) fn download(package: String, version: Option<String>) {
     let mut headers = header::HeaderMap::new();
     headers.insert(header::USER_AGENT, 
@@ -96,17 +98,6 @@ pub(crate) fn download(package: String, version: Option<String>) {
             break;
         }
     }
-}
-
-fn get_json(path: String) -> Result<Value, Box<dyn std::error::Error>> {
-    let file_path = Path::new(&path);
-
-    let file = File::open(&file_path)?;
-    let reader = BufReader::new(file);
-
-    let json: Value = serde_json::from_reader(reader)?;
-
-    Ok(json)
 }
 
 fn get_build_steps_from_json(path: String) -> Result<Vec<String>, Box<dyn std::error::Error>> {

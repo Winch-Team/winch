@@ -1,7 +1,0 @@
-target
-*/target
-kalk/Cargo.lock
-cli/Cargo.lock
-cli/test
-.vscode/
-result*

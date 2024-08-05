@@ -7,6 +7,10 @@ use std::io::BufReader;
 use std::path::Path;
 use std::io;
 use std::process::Command;
+use std::os::unix::fs::PermissionsExt;
+use dirs;
+use std::path::PathBuf;
+use std::fs;
 
 #[allow(unused_variables)]
 
@@ -19,7 +23,6 @@ pub(crate) fn download(package: String, version: Option<String>) {
         .default_headers(headers)
         .build()
         .expect("Failed to build client");
-    // println!("{:?}", download_link);
     
     let package_info_resp = client.get(format!("https://api.winchteam.dev/getInfo/{}", package))
         .send()
@@ -36,7 +39,7 @@ pub(crate) fn download(package: String, version: Option<String>) {
     let version = json_parse["versions"].as_array().unwrap().iter().filter(|x| {
         return !x.is_null();
     }).collect::<Vec<_>>();
-    let latest = version[0].as_str().unwrap();
+    let latest = version[version.len() - 1].as_str().unwrap();
     
     let download_link = format!("https://api.winchteam.dev/download/{}/{}/{}", package, author, latest);
 
@@ -66,7 +69,7 @@ pub(crate) fn download(package: String, version: Option<String>) {
     let build_steps = get_build_steps_from_json("./temp/.winch/install.json".to_string());
     
    
-    let build_steps = build_steps.unwrap(); // remove Ok from Result
+    let build_steps = build_steps.unwrap();
 
     // iterate over the build steps and execute them after asking for user confirmation
     
@@ -98,6 +101,29 @@ pub(crate) fn download(package: String, version: Option<String>) {
             break;
         }
     }
+
+    let home_dir = dirs::home_dir();
+    let target_dir = home_dir.expect("No home dir found").join(".winch/bin");
+
+    fs::create_dir_all(&target_dir);
+
+    let mut temp_dir = PathBuf::from(Path::new("./temp"));
+    let exec_dir = get_executable_dir_from_json("./temp/.winch/install.json".to_string()).unwrap();
+    temp_dir.push(exec_dir);
+    let exec_path = temp_dir;
+
+    let executables = find_executables(&exec_path);
+    for executable in executables {
+        let file_name = executable.file_name();
+        let target_path = if let Some(name) = file_name {
+            target_dir.join(name)
+        } else {
+            panic!("Unable to use target_path");
+        };
+        fs::rename(&executable, &target_path);
+    }
+
+    fs::remove_dir_all("./temp");
 }
 
 fn get_build_steps_from_json(path: String) -> Result<Vec<String>, Box<dyn std::error::Error>> {
@@ -118,3 +144,40 @@ fn get_build_steps_from_json(path: String) -> Result<Vec<String>, Box<dyn std::e
 
     Ok(steps)
 }
+
+fn is_executable(path: &Path) -> bool {
+    if let Ok(metadata) = fs::metadata(path) {
+        let permissions = metadata.permissions();
+        permissions.mode() & 0o111 != 0
+    } else {
+        false
+    }
+}
+
+fn find_executables(directory: &Path) -> Vec<PathBuf> {
+    let mut executables = Vec::new();
+
+    if let Ok(entries) = fs::read_dir(directory) {
+        for entry in entries {
+            if let Ok(entry) = entry {
+                let path = entry.path();
+                if path.is_file() && is_executable(&path) {
+                    executables.push(path);
+                }
+            }
+        }
+    }
+    executables
+}
+
+fn get_executable_dir_from_json(path: String) -> Result<String,Box<dyn std::error::Error>>{
+    let file_path = Path::new(&path);
+
+    let file = File::open(&file_path)?;
+    let reader = BufReader::new(file);
+
+    let json: Value = serde_json::from_reader(reader)?;
+    
+    let execdir = json["executable_dir"].as_str();
+    Ok(execdir.expect("Executable dir not found in json").to_string())
+} 

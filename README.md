@@ -5,7 +5,7 @@ Winch is a package manager that uses simple config, building from source, an ind
 
 ## Installation
 ```bash
-curl https://install.winchteam.dev | sh
+curl -sSf https://install.winchteam.dev/install-winch.sh | sh
 ```
 
 ## Usage

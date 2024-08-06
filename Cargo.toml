@@ -1,5 +1,5 @@
 [package]
-name = "winch_downloader"
+name = "winch"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,7 +7,11 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "4.5.7", features = ["derive"] }
+colored = "2.1.0"
+dirs = "5.0.1"
 json = "0.12.4"
 reqwest = { version = "0.12.4", features = ["json", "blocking"] }
 serde_json = "1.0.117"
+term-kit = "0.3.0-prerelease2"
+# term-kit = { git = "https://github.com/tylercritchlow/termkit.git", branch = "dev-3.0" }
 zip-extract = "0.1.3"

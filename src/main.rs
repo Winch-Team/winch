@@ -2,7 +2,7 @@ use clap::{Parser, Subcommand};
 mod commands;
 use commands::{ install::InstallArgs, remove::RemoveArgs, search::SearchArgs, sync::SyncArgs, upgrade::UpgradeArgs };
 mod downloader;
-use downloader::download;
+use downloader::download_and_install;
 
 #[derive(Parser)]
 #[command(name = "winch")]
@@ -32,7 +32,7 @@ fn main() {
             } else {
                 args.repo = args.repo.clone();
             }
-            download(args.package, None);
+            download_and_install(args.package, None);
         },
         Commands::Search(args) => {
             println!("Searching for package: {}", args.package);

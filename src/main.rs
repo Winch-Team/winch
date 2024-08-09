@@ -1,72 +1,56 @@
-use clap::{Parser, Subcommand};
-mod commands;
-use commands::{ install::InstallArgs, remove::RemoveArgs, search::SearchArgs, sync::SyncArgs, upgrade::UpgradeArgs };
+mod cli;
 mod downloader;
+
 use downloader::download_and_install;
 
-#[derive(Parser)]
-#[command(name = "winch")]
-#[command(version = "1.0")]
-struct Cli {
-    #[command(subcommand)]
-    command: Commands,
-}
-
-#[derive(Subcommand)]
-enum Commands {
-    Install(InstallArgs),
-    Search(SearchArgs),
-    Remove(RemoveArgs),
-    Sync(SyncArgs),
-    Upgrade(UpgradeArgs),
-}
-
 fn main() {
-    let cli = Cli::parse();
+    let matches = cli::build_cli().get_matches();
 
-    match cli.command {
-        Commands::Install(mut args) => {
-            if args.repo.is_none() {
-                let new_repo = Some("index.winchteam.dev".to_string());
-                args.repo = new_repo.clone();
-            } else {
-                args.repo = args.repo.clone();
-            }
-            download_and_install(args.package, None);
-        },
-        Commands::Search(args) => {
-            println!("Searching for package: {}", args.package);
-            println!("Local: {}", args.local);
-        },
-        Commands::Remove(args) => {
-            println!("Removing package: {}", args.package);
-        },
-        Commands::Sync(mut args) => {
-            if args.repo.is_none() {
-                let new_repo = Some("*".to_string());
-                args.repo = new_repo.clone();
-            } else {
-                args.repo = args.repo.clone();
-            }
-            println!("Syncing repo: {:?}", args.repo);
-        },
-        Commands::Upgrade(mut args) => {
-            if args.repo.is_none() {
-                let new_repo = Some("*".to_string()); // * means all repos
-                args.repo = new_repo.clone();
-            } else {
-                args.repo = args.repo.clone();
-            }
-            if args.package.is_none() {
-                let new_package = Some("*".to_string()); // * means all packages
-                args.package = new_package.clone();
-            } else {
-                args.package = args.package.clone();
-            }
-
-            println!("Upgrading package: {:?}", args.package);
-            println!("Repo: {:?}", args.repo);
-        },
+    if let Some(matches) = matches.subcommand_matches("install") {
+        let package = matches.get_one::<String>("package").unwrap();
+        // let repo = matches.get_one::<String>("repo");
+        let version = matches.get_one::<String>("version");
+        if version == None {
+            download_and_install(package.to_string(), None);
+        } else {
+            download_and_install(package.to_string(), version.cloned());
+        }
     }
 
+    if let Some(matches) = matches.subcommand_matches("remove") {
+        let package = matches.get_one::<String>("package").unwrap();
+        println!("Removing package: {}", package);
+    }
+    
+    if let Some(matches) = matches.subcommand_matches("upgrade") {
+        let package = matches.get_one::<String>("package").unwrap();
+        let repo = matches.get_one::<String>("repo");
+        
+        if repo == None || repo.unwrap() == "*" {
+            println!("Upgrading package: {} from all repos", package);
+        } else {
+            println!("Upgrading package: {} from repo: {}", package, repo.unwrap());
+        }
+    }
+    
+    if let Some(matches) = matches.subcommand_matches("search") {
+        let package = matches.get_one::<String>("package").unwrap();
+        let local = matches.get_flag("local");
+        
+        if local {
+            println!("Searching for package: {} locally", package);
+        } else {
+            println!("Searching for package: {} in remote repos", package);
+        }
+    }
+    
+    if let Some(matches) = matches.subcommand_matches("sync") {
+        let repo = matches.get_one::<String>("repo");
+        
+        if repo == None || repo.unwrap() == "*" {
+            println!("Syncing with all repos");
+        } else {
+            println!("Syncing with repo: {}", repo.unwrap());
+        }
+    }
 }

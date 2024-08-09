@@ -14,7 +14,6 @@ use term_kit::spinner::Spinner;
 use zip_extract;
 
 #[allow(unused_variables)]
-
 pub(crate) fn download_and_install(package: String, version: Option<String>) {
     let mut headers = header::HeaderMap::new();
     headers.insert(
@@ -206,4 +205,35 @@ fn get_executable_dir_from_json(path: String) -> Result<String, Box<dyn std::err
     Ok(execdir
         .expect("Executable dir not found in json")
         .to_string())
+}
+
+
+
+mod tests {
+    #[test]
+    fn test_get_executable_dir_from_json() {
+        let path = "./temp/.winch/install.json".to_string();
+        let result = super::get_executable_dir_from_json(path);
+}
+    #[test]
+    fn test_get_build_steps_from_json() {
+        let path = "./temp/.winch/install.json".to_string();
+        let result = super::get_build_steps_from_json(path);
+    }
+    #[test]
+    fn test_is_executable() {
+        let path = std::path::Path::new("./temp/.winch/install.json");
+        let result = super::is_executable(path);
+    }
+    #[test]
+    fn test_find_executables() {
+        let path = std::path::Path::new("./temp/.winch");
+        let result = super::find_executables(path);
+    }
+    #[test]
+    fn test_download_and_install() {
+        let package = "bat".to_string();
+        let version = None;
+        super::download_and_install(package, version);
+    }
 }

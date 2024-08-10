@@ -1,7 +1,8 @@
 use colored::Colorize;
 use dirs;
 use reqwest::{self, header};
-use serde_json::Value;
+use serde::Serialize;
+use serde_json::{to_writer, Value};
 use std::{
     collections::HashMap,
     fs::{self, File},
@@ -116,13 +117,14 @@ pub(crate) fn download_and_install(package: String, version: Option<String>) {
                 println!("\n{}", "SUCCESS!".bold());
             }
         } else {
-            println!("aborting install!");
+            println!("{}", "aborting install!\n".red().bold());
             break;
         }
     }
 
     let home_dir = dirs::home_dir();
-    let target_dir = home_dir.expect("No home dir found").join(".winch/bin");
+    let target_dir = home_dir.expect("No home dir found").join(".winch/bin/");
+
 
     fs::create_dir_all(&target_dir).expect("Failed to create target directory");
 
@@ -140,32 +142,39 @@ pub(crate) fn download_and_install(package: String, version: Option<String>) {
             panic!("Unable to use target_path");
         };
         fs::rename(&executable, &target_path).expect("Failed to move executable");
-    }
+        create_sidecar_file(package.to_owned(), file_name.unwrap().to_str().unwrap().to_string());
 
+    }
+    
     fs::remove_dir_all("./temp").expect("Failed to remove temp directory");
 }
 
-fn get_build_steps_from_json(path: String) -> Result<Vec<String>, Box<dyn std::error::Error>> {
-    let file_path = Path::new(&path);
+#[derive(Serialize)]
+struct SidecarFile {
+    package_name: String,
+    binary_name: String,
+}
 
-    let file = File::open(&file_path)?;
-    let reader = BufReader::new(file);
 
-    let json: Value = serde_json::from_reader(reader)?;
-
-    // Extract the install steps
-    let steps = json["build_steps"]
-        .as_array()
-        .ok_or("build_steps is not an array")?
-        .iter()
-        .map(|step| {
-            step.as_str()
-                .ok_or("step is not a string")
-                .map(|s| s.to_string())
-        })
-        .collect::<Result<Vec<String>, _>>()?;
-
-    Ok(steps)
+fn create_sidecar_file(package_name: String, binary_name: String) {
+    
+    let sidecar_file_data = SidecarFile {
+        package_name: package_name.clone(),
+        binary_name,
+    };
+        
+    let home_dir = dirs::home_dir();
+    let target_dir = home_dir.expect("No home dir found").join(".winch/bin/");
+    
+    let binding = target_dir.join(format!("{}.json", package_name));
+    let sidecar_file_path = binding.to_str().unwrap();
+    
+    let sidecar_file = File::create(sidecar_file_path).unwrap();
+    
+    to_writer(sidecar_file, &sidecar_file_data).expect("Failed to write sidecar file");
+    
+    
+    
 }
 
 fn is_executable(path: &Path) -> bool {
@@ -205,6 +214,28 @@ fn get_executable_dir_from_json(path: String) -> Result<String, Box<dyn std::err
     Ok(execdir
         .expect("Executable dir not found in json")
         .to_string())
+}
+
+fn get_build_steps_from_json(path: String) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+    let file_path = Path::new(&path);
+
+    let file = File::open(&file_path)?;
+    let reader = BufReader::new(file);
+
+    let json: Value = serde_json::from_reader(reader)?;
+
+    let steps = json["build_steps"]
+        .as_array()
+        .ok_or("build_steps is not an array")?
+        .iter()
+        .map(|step| {
+            step.as_str()
+                .ok_or("step is not a string")
+                .map(|s| s.to_string())
+        })
+        .collect::<Result<Vec<String>, _>>()?;
+
+    Ok(steps)
 }
 
 

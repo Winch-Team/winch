@@ -1,7 +1,9 @@
 mod cli;
 mod downloader;
+mod remover;
 
 use downloader::download_and_install;
+use remover::remove_package;
 
 fn main() {
     let matches = cli::build_cli().get_matches();
@@ -19,7 +21,9 @@ fn main() {
 
     if let Some(matches) = matches.subcommand_matches("remove") {
         let package = matches.get_one::<String>("package").unwrap();
-        println!("Removing package: {}", package);
+        remove_package(package.to_string());
+        
+        
     }
     
     if let Some(matches) = matches.subcommand_matches("upgrade") {

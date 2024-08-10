@@ -4,7 +4,7 @@ pub(crate) fn build_cli() -> Command {
     let matches = Command::new("winch")
         .version("0.1.0")
         .author("Winch Team")
-        .about("The winch package manager's cli interface")
+        .about("The Winch package manager's CLI interface")
         .subcommand(
             Command::new("install")
                 .about("install a package")

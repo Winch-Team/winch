@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand};
 mod commands;
 use commands::{ install::InstallArgs, remove::RemoveArgs, search::SearchArgs, sync::SyncArgs, upgrade::UpgradeArgs };
-mod downloader;
+pub mod downloader;
 use downloader::download_and_install;
 
 #[derive(Parser)]

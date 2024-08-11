@@ -4,17 +4,21 @@ use reqwest::{self, header};
 use serde_json::Value;
 use std::{
     collections::HashMap,
+    env,
     fs::{self, File},
     io::{self, BufReader, Cursor, Write},
-    os::unix::fs::PermissionsExt,
     path::{self, Path, PathBuf},
     process::Command,
 };
 use term_kit::spinner::Spinner;
-use zip_extract;
+
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
+
+#[cfg(windows)]
+use std::os::windows::fs::MetadataExt;
 
 #[allow(unused_variables)]
-
 pub(crate) fn download_and_install(package: String, version: Option<String>) {
     let mut headers = header::HeaderMap::new();
     headers.insert(
@@ -25,13 +29,14 @@ pub(crate) fn download_and_install(package: String, version: Option<String>) {
         .default_headers(headers)
         .build()
         .expect("Failed to build client");
+
     let package_info_resp = client
         .get(format!("https://api.winchteam.dev/getInfo/{}", package))
         .send()
         .unwrap()
         .text();
     let json_parse: Value = match serde_json::from_str(
-        std::str::from_utf8(&package_info_resp.unwrap().trim().as_bytes()).unwrap(),
+        &package_info_resp.unwrap().trim(),
     ) {
         Ok(value) => value,
         Err(error) => {
@@ -39,41 +44,39 @@ pub(crate) fn download_and_install(package: String, version: Option<String>) {
             return;
         }
     };
+
     let author = json_parse["author"].as_str().unwrap();
     let version = json_parse["versions"]
         .as_array()
         .unwrap()
         .iter()
-        .filter(|x| {
-            return !x.is_null();
-        })
+        .filter(|x| !x.is_null())
         .collect::<Vec<_>>();
-    let latest = version[version.len() - 1].as_str().unwrap();
+    let latest = version.last().unwrap().as_str().unwrap();
     let download_link = format!(
         "https://api.winchteam.dev/download/{}/{}/{}",
         package, author, latest
     );
+
     let resp = reqwest::blocking::get(download_link)
         .unwrap()
         .json::<HashMap<String, String>>();
     let respbinding = resp.unwrap();
-    let download_link = respbinding.get("download_url");
+    let download_link = respbinding.get("download_url").unwrap();
     let github_resp = client
-        .get(download_link.unwrap().to_string())
+        .get(download_link.to_string())
         .send()
         .unwrap()
         .text();
     let object: Value =
-        serde_json::from_str(std::str::from_utf8(&github_resp.unwrap().as_bytes()).unwrap())
-            .unwrap();
+        serde_json::from_str(&github_resp.unwrap()).unwrap();
     let zip_url = object["zipball_url"].as_str().unwrap();
     let zip_resp = client.get(zip_url).send().unwrap().bytes();
     let archive: Vec<u8> = zip_resp.unwrap().to_vec();
-    let target_dir = std::env::current_dir()
-        .unwrap()
-        .join(path::Path::new("temp"));
-    zip_extract::extract(Cursor::new(archive), &target_dir, true).expect("Failed to extract zip");
-    let build_steps = get_build_steps_from_json("./temp/.winch/install.json".to_string());
+    let mut temp_dir = PathBuf::from(Path::new("./temp"));
+    zip_extract::extract(Cursor::new(archive), &temp_dir, true).expect("Failed to extract zip");
+
+    let build_steps = get_build_steps_from_json(temp_dir.join(".winch").join("install.json").display().to_string());
     let build_steps = build_steps.unwrap();
     let spinner = Spinner::new(format!("Running build step-- {}", "This may take a while!".red().bold()).to_string());
 
@@ -87,7 +90,7 @@ pub(crate) fn download_and_install(package: String, version: Option<String>) {
             .read_line(&mut input)
             .expect("Failed to read input");
 
-        if input.trim().to_lowercase() == "y" || input.trim().to_lowercase() == "Y" {
+        if input.trim().to_lowercase() == "y" {
             spinner.render();
 
             let (shell, shell_arg) = if cfg!(target_os = "windows") {
@@ -100,6 +103,18 @@ pub(crate) fn download_and_install(package: String, version: Option<String>) {
                 .arg(step)
                 .output()
                 .expect("Failed to execute command");
+
+            if !output.status.success() {
+                eprintln!(
+                    "{}",
+                    "Failed to execute command".red().bold()
+                );
+                eprintln!("Command: {}", step);
+                eprintln!("Exit code: {}", output.status.code().unwrap_or(-1));
+                eprintln!("Standard Output:\n{}", String::from_utf8_lossy(&output.stdout));
+                eprintln!("Standard Error:\n{}", String::from_utf8_lossy(&output.stderr));
+                return;
+            }
 
             spinner.stop();
 
@@ -122,15 +137,12 @@ pub(crate) fn download_and_install(package: String, version: Option<String>) {
         }
     }
 
-    let home_dir = dirs::home_dir();
-    let target_dir = home_dir.expect("No home dir found").join(".winch/bin");
+    let target_dir = dirs::home_dir().expect("No home dir found").join(".winch/bin");
 
     fs::create_dir_all(&target_dir).expect("Failed to create target directory");
 
-    let mut temp_dir = PathBuf::from(Path::new("./temp"));
-    let exec_dir = get_executable_dir_from_json("./temp/.winch/install.json".to_string()).unwrap();
-    temp_dir.push(exec_dir);
-    let exec_path = temp_dir;
+    let exec_dir = get_executable_dir_from_json(temp_dir.join(".winch").join("install.json").display().to_string()).unwrap();
+    let exec_path = temp_dir.join(exec_dir);
 
     let executables = find_executables(&exec_path);
     for executable in executables {
@@ -140,10 +152,11 @@ pub(crate) fn download_and_install(package: String, version: Option<String>) {
         } else {
             panic!("Unable to use target_path");
         };
+        println!("{:?}", target_path);
         fs::rename(&executable, &target_path).expect("Failed to move executable");
     }
 
-    fs::remove_dir_all("./temp").expect("Failed to remove temp directory");
+    fs::remove_dir_all(temp_dir).expect("Failed to remove temp directory");
 }
 
 fn get_build_steps_from_json(path: String) -> Result<Vec<String>, Box<dyn std::error::Error>> {
@@ -169,16 +182,18 @@ fn get_build_steps_from_json(path: String) -> Result<Vec<String>, Box<dyn std::e
     Ok(steps)
 }
 
-fn is_executable(path: &Path) -> bool {
+pub(crate) fn is_executable(path: &Path) -> bool {
     if let Ok(metadata) = fs::metadata(path) {
-        let permissions = metadata.permissions();
-        permissions.mode() & 0o111 != 0
-    } else {
-        false
+        #[cfg(unix)]
+        return metadata.permissions().mode() & 0o111 != 0;
+
+        #[cfg(windows)]
+        return metadata.file_attributes() & 0x00000001 != 0; // FILE_ATTRIBUTE_READONLY
     }
+    false
 }
 
-fn find_executables(directory: &Path) -> Vec<PathBuf> {
+pub(crate) fn find_executables(directory: &Path) -> Vec<PathBuf> {
     let mut executables = Vec::new();
 
     if let Ok(entries) = fs::read_dir(directory) {
@@ -194,7 +209,7 @@ fn find_executables(directory: &Path) -> Vec<PathBuf> {
     executables
 }
 
-fn get_executable_dir_from_json(path: String) -> Result<String, Box<dyn std::error::Error>> {
+pub(crate) fn get_executable_dir_from_json(path: String) -> Result<String, Box<dyn std::error::Error>> {
     let file_path = Path::new(&path);
 
     let file = File::open(&file_path)?;

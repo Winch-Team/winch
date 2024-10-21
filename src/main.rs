@@ -35,11 +35,10 @@ fn main() {
             download_and_install(args.package, None);
         },
         Commands::Search(args) => {
-            println!("Searching for package: {}", args.package);
-            println!("Local: {}", args.local);
+            unimplemented!();
         },
         Commands::Remove(args) => {
-            println!("Removing package: {}", args.package);
+            unimplemented!();
         },
         Commands::Sync(mut args) => {
             if args.repo.is_none() {
@@ -48,7 +47,6 @@ fn main() {
             } else {
                 args.repo = args.repo.clone();
             }
-            println!("Syncing repo: {:?}", args.repo);
         },
         Commands::Upgrade(mut args) => {
             if args.repo.is_none() {
@@ -63,9 +61,8 @@ fn main() {
             } else {
                 args.package = args.package.clone();
             }
-
-            println!("Upgrading package: {:?}", args.package);
-            println!("Repo: {:?}", args.repo);
+            
+            unimplemented!();
         },
     }
 
